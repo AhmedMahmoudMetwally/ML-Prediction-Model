@@ -36,3 +36,42 @@ for col in df.columns :
     le=LabelEncoder()
     df[col] = le.fit_transform(df[col])
     print(df)
+
+# Feature Encoding
+df = pd.get_dummies(df, columns=['season', 'weather'], drop_first=True)
+
+# Feature Scaling
+scaler = StandardScaler()
+numerical_columns = ['temp', 'atemp', 'humidity', 'windspeed']
+df[numerical_columns] = scaler.fit_transform(df[numerical_columns])
+
+# Define target variable and features
+X = df.drop(columns=['count'])
+y = df['count']
+
+# Split data into training and testing sets
+X_train, X_test, y_train, y_test = train_test_split(X, y, test_size=0.2, random_state=42)
+
+# Train a regression model
+model = LinearRegression()
+model.fit(X_train, y_train)
+
+# Evaluate the model
+y_pred = model.predict(X_test)
+mse = mean_squared_error(y_test, y_pred)
+r2 = r2_score(y_test, y_pred)
+print(f"Mean Squared Error: {mse}")
+print(f"R^2 Score: {r2}")
+
+# Flask Web Application
+app = Flask(__name__)
+
+@app.route('/predict', methods=['POST'])
+def predict():
+    data = request.get_json()
+    input_data = np.array([data[feature] for feature in X.columns]).reshape(1, -1)
+    prediction = model.predict(input_data)
+    return jsonify({'prediction': prediction[0]})
+
+if __name__ == '__main__':
+    app.run(debug=True)
