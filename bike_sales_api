@@ -1,0 +1,70 @@
+from flask import Flask, jsonify, request
+import pandas as pd
+from io import StringIO
+
+# Read the data from the CSV file
+file_path = r"D:\Data Sience Methodology , data project\bike_sales_100k.csv"
+df = pd.read_csv(file_path)
+
+# Create a Flask app
+app = Flask(__name__)
+
+# Home endpoint to display available routes
+@app.route("/", methods=["GET"])
+def home():
+    return jsonify({
+        "message": "Welcome! This is an API for analyzing bike sales data.",
+        "endpoints": {
+            "/data": "Display the first 5 rows of the dataset",
+            "/info": "Show dataset structure information",
+            "/describe": "Display statistical summary of the dataset",
+            "/filter": "Filter the dataset based on a specific column (use ?column=column_name&value=value)"
+        }
+    })
+
+# Endpoint to display the first 5 rows of the dataset
+@app.route("/data", methods=["GET"])
+def get_data():
+    return jsonify(df.head(5).to_dict(orient="records"))
+
+# Endpoint to display information about the dataset structure
+#@app.route("/info", methods=["GET"])
+#def get_info():
+ #   buffer = []
+  #  df.info(buf=buffer)  # Collect the structure info in a buffer
+   # info_str = "\n".join(buffer)  # Join buffer into a single string
+    #return jsonify({"info": info_str})
+    @app.route('/info', methods=['GET'])
+    def get_info():
+        return jsonify({"message": "Server is running"})
+
+    @app.route('/predict', methods=['POST'])
+    def predict():
+        data = request.json
+        symptoms = data.get("symptoms", "")
+        return jsonify({"prediction": "Prediction based on symptoms: " + symptoms})
+
+# Endpoint to display a statistical summary of the dataset
+@app.route("/describe", methods=["GET"])
+def get_describe():
+    description = df.describe().to_dict()  # Generate descriptive statistics as a dictionary
+    return jsonify(description)
+
+# Endpoint to filter the dataset based on a column and value
+@app.route("/filter", methods=["GET"])
+def filter_data():
+    # Get the column and value parameters from the request
+    column = request.args.get("column")
+    value = request.args.get("value")
+
+    # Check if the column exists in the dataset
+    if column not in df.columns:
+        return jsonify({"error": f"Column '{column}' does not exist in the dataset."}), 400
+
+    # Filter the dataset where the column matches the specified value
+    filtered_data = df[df[column].astype(str) == value]
+    return jsonify(filtered_data.to_dict(orient="records"))
+
+# Run the Flask app
+if __name__ == "__main__":
+    app.run(debug=True)
