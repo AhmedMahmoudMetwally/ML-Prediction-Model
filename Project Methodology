@@ -14,20 +14,20 @@ import statistics
 
 # Read data 
 
-df=pd.read_csv(r'C:\Users\UP2store\Documents\bike_sales_100k.csv')
+df=pd.read_csv(r'D:\Data Sience Methodology , data project\bike_sales_100k.csv')
 print (df)
 
 # Replace 'prognosis' with the actual target column name
 target_column = 'prognosis'  # Update this to your dataset's target column name
 
 # Check structure of the dataset
-print(data.head())
-print(data.info())
+print(df.head())
+print(df.info())
 
 # Check if the target column exists
-if target_column in data.columns:
+if target_column in df.columns:
     # Count categories in the target column
-    disease_counts = data[target_column].value_counts()
+    disease_counts = df [target_column].value_counts()
     temp_df = pd.DataFrame({
         "Category": disease_counts.index,
         "Counts": disease_counts.values
@@ -40,11 +40,11 @@ if target_column in data.columns:
 
     # Encode target values
     encoder = LabelEncoder()
-    data[target_column] = encoder.fit_transform(data[target_column])
+    df[target_column] = encoder.fit_transform(df[target_column])
 
     # Split data into features and target
-    X = data.drop(columns=[target_column])
-    y = data[target_column]
+    X = df.drop(columns=[target_column])
+    y = df[target_column]
 
     # Train-test split
     X_train, X_test, y_train, y_test = train_test_split(X, y, test_size=0.2, random_state=24)
