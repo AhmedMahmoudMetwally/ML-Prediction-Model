@@ -1,0 +1,87 @@
+import pandas as pd
+import matplotlib.pyplot as plt
+import seaborn as sns
+import numpy as np
+file_path = 'C:/Users/Dell/Downloads/Electric_Vehicle_Population_Data.csv'
+data = pd.read_csv(file_path)
+
+
+data = pd.DataFrame(data)
+
+print(data.head())
+print(data.tail())
+print(data.info())
+print(data.sample())
+print(data.describe())
+
+
+print(data.isnull().sum().sum())
+
+sns.boxplot(data['Electric Range'])
+
+q1 =data['Electric Range'].quantile(0.25)
+q3 =data['Electric Range'].quantile(0.75)
+iqr=q3-q1
+q1,q3,iqr
+
+upper_limit = q3+(1.5*iqr)
+lower_limit = q1-(1.5*iqr)
+upper_limit,lower_limit
+
+data.loc[(data['Electric Range']>upper_limit)|(data['Electric Range']<lower_limit)]
+
+new_data = data.loc[(data['Electric Range']<=upper_limit)&(data['Electric Range']>=lower_limit)]
+print("before removing outliars : " ,len(data))
+print("after removing outliars : " ,len(new_data))
+print("outliars : " ,len(data)-len(new_data))
+
+
+
+new_data = data.copy()
+
+upper_limit = new_data.loc[(new_data['Electric Range']>upper_limit),'Electric Range']
+lower_limit = new_data.loc[(new_data['Electric Range']<lower_limit),'Electric Range']
+
+sns.boxplot(new_data['Electric Range'])
+
+from sklearn.cluster import KMeans
+from sklearn.preprocessing import StandardScaler
+
+kmeans = KMeans(n_clusters= 4)
+cluster = kmeans.fit_predict(data[['Electric Range','Model Year']])
+cluster
+
+
+data['cluster']=cluster
+data
+
+centroids = kmeans.cluster_centers_
+centroids
+
+
+features = data[['Electric Range', 'Model Year']].values 
+plt.scatter(features[:, 0], features[:, 1], c='blue', cmap='viridis', s=30)
+plt.scatter(centroids[:, 0], centroids[:, 1], c='red', marker='x', s=100, label="Centroids") 
+plt.title("K-Means Clustering")
+plt.xlabel("Feature 1 (Electric Range)")
+plt.ylabel("Feature 2 (Model Year)")
+plt.legend()
+plt.show()
+
+
+from sklearn.preprocessing import LabelEncoder
+
+
+data_encoded = data.copy()
+
+
+categorical_columns = data.select_dtypes(include=['object']).columns
+
+
+label_encoders = {}
+
+for col in categorical_columns:
+    le = LabelEncoder()
+    data_encoded[col] = le.fit_transform(data[col])
+    label_encoders[col] = le  
+    print(data_encoded.head())
