@@ -1,136 +1,140 @@
-# Importing libraries
+# Importing Libraries
 import numpy as np
 import pandas as pd
-from scipy.stats import mode
-import matplotlib.pyplot as plt
-import seaborn as sns
 from sklearn.preprocessing import LabelEncoder
 from sklearn.model_selection import train_test_split, cross_val_score
 from sklearn.svm import SVC
 from sklearn.naive_bayes import GaussianNB
 from sklearn.ensemble import RandomForestClassifier
-from sklearn.metrics import accuracy_score, confusion_matrix
+from sklearn.metrics import accuracy_score, classification_report, confusion_matrix
+import matplotlib.pyplot as plt
+import seaborn as sns
 import statistics
 
-# Read data 
+#  Read the dataset
+df = pd.read_csv(r'D:\Data Sience Methodology , data project\bike_sales_100k.csv')
 
-df=pd.read_csv(r'D:\Data Sience Methodology , data project\bike_sales_100k.csv')
-print (df)
-
-# Replace 'prognosis' with the actual target column name
-target_column = 'prognosis'  # Update this to your dataset's target column name
-
-# Check structure of the dataset
+# Display initial data structure and summary
+print("Dataset Head:")
 print(df.head())
+print("\nDataset Info:")
 print(df.info())
 
-# Check if the target column exists
-if target_column in df.columns:
-    # Count categories in the target column
-    disease_counts = df [target_column].value_counts()
-    temp_df = pd.DataFrame({
-        "Category": disease_counts.index,
-        "Counts": disease_counts.values
-    })
+#  Clean and Prepare the Data
+# Convert 'Date' column to datetime format
+df['Date'] = pd.to_datetime(df['Date'], format='%d-%m-%Y', errors='coerce')
 
-    plt.figure(figsize=(18, 8))
-    sns.barplot(x="Category", y="Counts", data=temp_df)
-    plt.xticks(rotation=90)
-    plt.show()
+# Check for missing values
+print("\nMissing Values per Column:")
+print(df.isnull().sum())
 
-    # Encode target values
-    encoder = LabelEncoder()
-    df[target_column] = encoder.fit_transform(df[target_column])
+# Encode categorical columns
+label_encoders = {}
+categorical_columns = ['Bike_Model', 'Store_Location', 'Payment_Method', 'Customer_Gender']
 
-    # Split data into features and target
-    X = df.drop(columns=[target_column])
-    y = df[target_column]
+for column in categorical_columns:
+    le = LabelEncoder()
+    df[column] = le.fit_transform(df[column])
+    label_encoders[column] = le
 
-    # Train-test split
-    X_train, X_test, y_train, y_test = train_test_split(X, y, test_size=0.2, random_state=24)
-    print(f"Train: {X_train.shape}, {y_train.shape}")
-    print(f"Test: {X_test.shape}, {y_test.shape}")
+# Add a Revenue column (Price * Quantity)
+df['Revenue'] = df['Price'] * df['Quantity']
 
-    # Define scoring function
-    def cv_scoring(estimator, X, y):
-        return accuracy_score(y, estimator.predict(X))
+#  Data Visualization
+# Visualize Customer Age distribution
+plt.figure(figsize=(10, 6))
+sns.histplot(df['Customer_Age'], bins=20, kde=True, color='skyblue')
+plt.title("Customer Age Distribution")
+plt.xlabel("Age")
+plt.ylabel("Frequency")
+plt.show()
 
-    # Initialize models
-    models = {
-        "SVC": SVC(),
-        "Gaussian NB": GaussianNB(),
-        "Random Forest": RandomForestClassifier(random_state=18)
-    }
+# Sales by Store Location
+plt.figure(figsize=(10, 6))
+sns.countplot(data=df, x='Store_Location', palette='viridis')
+plt.title("Sales by Store Location")
+plt.xlabel("Store Location")
+plt.ylabel("Number of Sales")
+plt.xticks(rotation=45)
+plt.show()
 
-    # Cross-validation for models
-    for model_name in models:
-        model = models[model_name]
-        scores = cross_val_score(model, X, y, cv=10, n_jobs=-1, scoring=cv_scoring)
-        print("==" * 30)
-        print(model_name)
-        print(f"Scores: {scores}")
-        print(f"Mean Score: {np.mean(scores)}")
+# Revenue by Bike Model
+plt.figure(figsize=(12, 6))
+sns.boxplot(data=df, x='Bike_Model', y='Revenue', palette='Set2')
+plt.title("Revenue Distribution by Bike Model")
+plt.xlabel("Bike Model")
+plt.ylabel("Revenue")
+plt.xticks(rotation=45)
+plt.show()
 
-    # Train final models
-    final_svm_model = SVC()
-    final_nb_model = GaussianNB()
-    final_rf_model = RandomForestClassifier(random_state=18)
+#  Define Features and Target
+X = df[['Customer_Age', 'Bike_Model', 'Price', 'Quantity', 'Store_Location', 'Customer_Gender']]
+y = df['Payment_Method']
 
-    final_svm_model.fit(X, y)
-    final_nb_model.fit(X, y)
-    final_rf_model.fit(X, y)
+# Split data into train and test sets
+X_train, X_test, y_train, y_test = train_test_split(X, y, test_size=0.2, random_state=42)
+print(f"\nTrain shapes: {X_train.shape}, {y_train.shape}")
+print(f"Test shapes: {X_test.shape}, {y_test.shape}")
 
-    # Function to predict disease based on symptoms
-    symptoms = X.columns.values  # Assuming symptoms are features
+# Train and Evaluate Models
+models = {
+    "SVC": SVC(),
+    "Gaussian NB": GaussianNB(),
+    "Random Forest": RandomForestClassifier(random_state=42)
+}
 
-    # Create a symptom index dictionary
-    symptom_index = {}
-    for index, value in enumerate(symptoms):
-        symptom = " ".join([i.capitalize() for i in value.split("_")])
-        symptom_index[symptom] = index
+# Evaluate models using cross-validation
+for model_name, model in models.items():
+    scores = cross_val_score(model, X_train, y_train, cv=5, scoring='accuracy')
+    print(f"\n{model_name} Cross-Validation Mean Accuracy: {np.mean(scores):.2f}")
 
-    # Store class and symptom mappings
-    data_dict = {
-        "symptom_index": symptom_index,
-        "predictions_classes": encoder.classes_
-    }
+# Train final Random Forest Model
+final_model = RandomForestClassifier(random_state=42)
+final_model.fit(X_train, y_train)
 
-    # Define the prediction function
-    def predictDisease(symptoms_input):
-        symptoms = symptoms_input.split(",")  # Split input by commas
+#  Evaluate Final Model
+y_pred = final_model.predict(X_test)
+print("\nFinal Model Accuracy:")
+print(f"Accuracy: {accuracy_score(y_test, y_pred):.2f}")
+print("\nClassification Report:")
+print(classification_report(y_test, y_pred))
+print("\nConfusion Matrix:")
+sns.heatmap(confusion_matrix(y_test, y_pred), annot=True, fmt='d', cmap='Blues')
+plt.title("Confusion Matrix")
+plt.show()
 
-        # Create input data for models
-        input_data = [0] * len(data_dict["symptom_index"])
-        for symptom in symptoms:
-            if symptom in data_dict["symptom_index"]:
-                index = data_dict["symptom_index"][symptom]
-                input_data[index] = 1
-            else:
-                print(f"Warning: Symptom '{symptom}' not recognized.")
+#  Prediction Function
+def predict_payment_method(input_data):
+    """
+    Predict the payment method based on input features.
+    input_data: dict containing keys:
+        - Customer_Age
+        - Bike_Model
+        - Price
+        - Quantity
+        - Store_Location
+        - Customer_Gender
+    """
+    features = [
+        input_data['Customer_Age'],
+        label_encoders['Bike_Model'].transform([input_data['Bike_Model']])[0],
+        input_data['Price'],
+        input_data['Quantity'],
+        label_encoders['Store_Location'].transform([input_data['Store_Location']])[0],
+        label_encoders['Customer_Gender'].transform([input_data['Customer_Gender']])[0]
+    ]
+    prediction = final_model.predict([features])[0]
+    payment_method = label_encoders['Payment_Method'].inverse_transform([prediction])[0]
+    return payment_method
 
-        # Reshape and format input data
-        input_data = np.array(input_data).reshape(1, -1)
-
-        # Predictions from individual models
-        rf_prediction = data_dict["predictions_classes"][final_rf_model.predict(input_data)[0]]
-        nb_prediction = data_dict["predictions_classes"][final_nb_model.predict(input_data)[0]]
-        svm_prediction = data_dict["predictions_classes"][final_svm_model.predict(input_data)[0]]
-
-        # Final prediction by taking the mode
-        final_prediction = statistics.mode([rf_prediction, nb_prediction, svm_prediction])
-
-        predictions = {
-            "Random Forest Prediction": rf_prediction,
-            "Naive Bayes Prediction": nb_prediction,
-            "SVM Prediction": svm_prediction,
-            "Final Prediction": final_prediction
-        }
-
-        return predictions
-
-    # Test the function
-    test_symptoms = "Symptom1,Symptom2,Symptom3"  # Replace with actual symptom names
-    print(predictDisease(test_symptoms))
-
-else:
-    print(f"The target column '{target_column}' is not in the dataset. Please check the column names.")
+# Test the prediction function
+sample_input = {
+    "Customer_Age": 30,
+    "Bike_Model": "Cruiser",
+    "Price": 1500,
+    "Quantity": 2,
+    "Store_Location": "Philadelphia",
+    "Customer_Gender": "Female"
+}
+predicted_method = predict_payment_method(sample_input)
+print(f"\nPredicted Payment Method: {predicted_method}")
