@@ -1,15 +1,39 @@
 from flask import Flask, jsonify, request
 import pandas as pd
-from io import StringIO
+from sklearn.preprocessing import LabelEncoder
+from sklearn.ensemble import RandomForestClassifier
+import numpy as np
 
-# Read the data from the CSV file
-file_path = r"D:\Data Sience Methodology , data project\bike_sales_100k.csv"
+# Read the dataset
+file_path = r'D:\Data Sience Methodology , data project\bike_sales_100k.csv'
 df = pd.read_csv(file_path)
 
-# Create a Flask app
+# Create Flask app
 app = Flask(__name__)
 
-# Home endpoint to display available routes
+# Initialize LabelEncoders for categorical columns
+label_encoders = {}
+categorical_columns = ['Bike_Model', 'Store_Location', 'Payment_Method', 'Customer_Gender']
+
+# Encoding categorical data into numerical values
+for column in categorical_columns:
+    le = LabelEncoder()
+    df[column] = le.fit_transform(df[column])  # Encode categorical column
+    label_encoders[column] = le  # Store the encoder for future use
+
+# Add a 'Revenue' column calculated as Price * Quantity
+df['Revenue'] = df['Price'] * df['Quantity']
+
+# Define features (X) and target (y)
+X = df[['Customer_Age', 'Bike_Model', 'Price', 'Quantity', 'Store_Location', 'Customer_Gender']]
+y = df['Payment_Method']
+
+# Train a RandomForestClassifier model on the dataset
+model = RandomForestClassifier(random_state=42)
+model.fit(X, y)
+
+
+# Home route that gives the user information about available endpoints
 @app.route("/", methods=["GET"])
 def home():
     return jsonify({
@@ -18,53 +42,78 @@ def home():
             "/data": "Display the first 5 rows of the dataset",
             "/info": "Show dataset structure information",
             "/describe": "Display statistical summary of the dataset",
-            "/filter": "Filter the dataset based on a specific column (use ?column=column_name&value=value)"
+            "/filter": "Filter the dataset based on a specific column (use ?column=column_name&value=value)",
+            "/predict": "Predict the payment method based on input features"
         }
     })
+
 
 # Endpoint to display the first 5 rows of the dataset
 @app.route("/data", methods=["GET"])
 def get_data():
     return jsonify(df.head(5).to_dict(orient="records"))
 
-# Endpoint to display information about the dataset structure
-#@app.route("/info", methods=["GET"])
-#def get_info():
- #   buffer = []
-  #  df.info(buf=buffer)  # Collect the structure info in a buffer
-   # info_str = "\n".join(buffer)  # Join buffer into a single string
-    #return jsonify({"info": info_str})
-    @app.route('/info', methods=['GET'])
-    def get_info():
-        return jsonify({"message": "Server is running"})
 
-    @app.route('/predict', methods=['POST'])
-    def predict():
-        data = request.json
-        symptoms = data.get("symptoms", "")
-        return jsonify({"prediction": "Prediction based on symptoms: " + symptoms})
+# Endpoint to display dataset structure information
+@app.route("/info", methods=["GET"])
+def get_info():
+    buffer = []
+    df.info(buf=buffer)  # Collect dataset info in the buffer
+    info_str = "\n".join(buffer)  # Join the buffer into a single string
+    return jsonify({"info": info_str})
 
-# Endpoint to display a statistical summary of the dataset
+
+# Endpoint to show statistical summary of the dataset
 @app.route("/describe", methods=["GET"])
 def get_describe():
-    description = df.describe().to_dict()  # Generate descriptive statistics as a dictionary
+    description = df.describe().to_dict()  # Get descriptive statistics as a dictionary
     return jsonify(description)
 
-# Endpoint to filter the dataset based on a column and value
+
+# Endpoint to filter the dataset based on a specific column and value
 @app.route("/filter", methods=["GET"])
 def filter_data():
-    # Get the column and value parameters from the request
-    column = request.args.get("column")
-    value = request.args.get("value")
+    column = request.args.get("column")  # Get the column name from query params
+    value = request.args.get("value")  # Get the value to filter by
 
-    # Check if the column exists in the dataset
-    if column not in df.columns:
+    if column not in df.columns:  # Check if the column exists in the dataset
         return jsonify({"error": f"Column '{column}' does not exist in the dataset."}), 400
 
     # Filter the dataset where the column matches the specified value
     filtered_data = df[df[column].astype(str) == value]
     return jsonify(filtered_data.to_dict(orient="records"))
 
-# Run the Flask app
+
+# Endpoint for predicting the payment method based on user input
+@app.route("/predict", methods=["POST"])
+def predict():
+    data = request.json  # Get the JSON data from the POST request
+
+    # Ensure that all required fields are present in the input data
+    required_fields = ['Customer_Age', 'Bike_Model', 'Price', 'Quantity', 'Store_Location', 'Customer_Gender']
+    if not all(field in data for field in required_fields):
+        return jsonify({"error": "Missing required input fields."}), 400
+
+    # Prepare the feature vector for prediction
+    features = [
+        data['Customer_Age'],
+        label_encoders['Bike_Model'].transform([data['Bike_Model']])[0],
+        data['Price'],
+        data['Quantity'],
+        label_encoders['Store_Location'].transform([data['Store_Location']])[0],
+        label_encoders['Customer_Gender'].transform([data['Customer_Gender']])[0]
+    ]
+
+    # Make the prediction using the trained model
+    prediction = model.predict([features])[0]
+
+    # Reverse transform the prediction back to the original label
+    payment_method = label_encoders['Payment_Method'].inverse_transform([prediction])[0]
+
+    # Return the predicted payment method
+    return jsonify({"predicted_payment_method": payment_method})
+
+
+# Run the app on the local server
 if __name__ == "__main__":
     app.run(debug=True)
